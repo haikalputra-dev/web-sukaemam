@@ -10,14 +10,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('restaurants', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->string('name');
             $table->text('address');
             $table->text('description')->nullable();
             $table->decimal('latitude', 10, 8);
             $table->decimal('longitude', 11, 8);
             $table->decimal('average_rating', 3, 2)->default(0.00);
-            $table->string('image_url')->nullable();
             $table->timestamps();
             
             // Indexes

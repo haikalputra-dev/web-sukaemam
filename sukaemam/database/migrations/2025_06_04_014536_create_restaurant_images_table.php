@@ -11,7 +11,7 @@ return new class extends Migration
     {
         Schema::create('restaurant_images', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('restaurant_id')->constrained()->onDelete('cascade');
+            $table->foreignId('restaurant_id')->constrained()->onDelete('cascade');
             $table->string('image_url');
             $table->timestamp('uploaded_at')->useCurrent();
             $table->timestamps();

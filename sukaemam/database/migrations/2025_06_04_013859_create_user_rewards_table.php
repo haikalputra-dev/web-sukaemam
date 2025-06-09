@@ -10,9 +10,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('user_rewards', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignUuid('reward_id')->constrained()->onDelete('cascade');
+            $table->foreignId('reward_id')->constrained()->onDelete('cascade');
             $table->timestamp('claimed_at')->useCurrent();
             $table->string('qr_code_data')->nullable(); // QR code for redemption
             $table->boolean('is_redeemed')->default(false);

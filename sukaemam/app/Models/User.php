@@ -81,4 +81,27 @@ class User extends Authenticatable
     {
         return $this->total_points >= $reward->point_cost;
     }
+
+        // Filament Admin Access
+    public function canAccessPanel(Panel $panel): bool
+    {
+        // Hanya user dengan email tertentu yang bisa akses admin
+        // Atau bisa tambah field 'is_admin' di database
+        return in_array($this->email, [
+            'admin@sukaemam.com',
+            'your-email@example.com', // Ganti dengan email Anda
+        ]);
+    }
+
+    // Tambahkan method ini untuk Filament
+    public function getFilamentName(): string
+    {
+        return $this->username ?? $this->email;
+    }
+
+    // Alternative: Buat accessor untuk name
+    public function getNameAttribute(): string
+    {
+        return $this->username;
+    }
 }

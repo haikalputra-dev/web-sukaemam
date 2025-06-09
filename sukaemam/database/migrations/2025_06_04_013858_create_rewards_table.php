@@ -10,12 +10,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('rewards', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->string('name');
             $table->text('description')->nullable();
             $table->string('type'); // 'discount', 'free_item', 'voucher', etc.
             $table->integer('point_cost');
-            $table->foreignUuid('restaurant_id')->nullable()->constrained()->onDelete('cascade');
+            $table->foreignId('restaurant_id')->nullable()->constrained()->onDelete('cascade');
             $table->boolean('is_active')->default(true);
             $table->string('image_url')->nullable();
             $table->timestamps();

@@ -10,9 +10,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('checkins', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignUuid('restaurant_id')->constrained()->onDelete('cascade');
+            $table->foreignId('restaurant_id')->constrained()->onDelete('cascade');
             $table->timestamp('checkin_time')->useCurrent();
             $table->string('qr_code_data');
             $table->integer('points_earned')->default(0);
