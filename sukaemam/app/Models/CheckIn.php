@@ -11,6 +11,8 @@ class CheckIn extends Model
 {
     use HasFactory, HasUuids;
 
+    protected $table = 'checkins';
+
     protected $fillable = [
         'user_id',
         'restaurant_id',

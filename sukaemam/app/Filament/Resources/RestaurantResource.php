@@ -28,6 +28,8 @@ class RestaurantResource extends Resource
     
     protected static ?string $navigationLabel = 'Restaurants';
     
+    protected static ?string $navigationGroup = 'Content Management';
+    
     protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
@@ -74,10 +76,17 @@ class RestaurantResource extends Resource
                             ->image()
                             ->imageEditor()
                             ->multiple()
-                            ->directory('restaurants')
+                            ->directory('restaurant-images')
                             ->disk('public')
                             ->visibility('public')
-                            ->preserveFilenames()
+                            ->getUploadedFileNameForStorageUsing(
+                                function ($file) {
+                                    $timestamp = now()->timestamp;
+                                    $random = str_pad(random_int(0, 999), 3, '0', STR_PAD_LEFT);
+                                    $extension = $file->getClientOriginalExtension();
+                                    return "restaurant-photos-{$timestamp}-{$random}.{$extension}";
+                                }
+                            )
                             ->maxFiles(10)
                             ->reorderable()
                             ->columnSpanFull()
@@ -130,12 +139,6 @@ class RestaurantResource extends Resource
                         $state = $column->getState();
                         return strlen($state) > 50 ? $state : null;
                     }),
-                    
-                TextColumn::make('restaurantImages_count')
-                    ->label('Images')
-                    ->counts('restaurantImages')
-                    ->badge()
-                    ->color('info'),
                     
                 TextColumn::make('average_rating')
                     ->label('Rating')

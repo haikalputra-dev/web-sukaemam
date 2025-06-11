@@ -30,6 +30,24 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
+            ->darkMode(false)
+            ->brandName('SukaEmam Admin')
+            ->sidebarCollapsibleOnDesktop()
+            ->maxContentWidth('full')
+            ->navigationGroups([
+                'Content Management',
+                'Activity Management',
+                'Gamification',
+                'User Management',
+            ])
+            ->navigationItems([
+                \Filament\Navigation\NavigationItem::make('Dashboard')
+                    ->icon('heroicon-o-home')
+                    ->activeIcon('heroicon-s-home')
+                    ->isActiveWhen(fn (): bool => request()->routeIs('filament.admin.pages.dashboard'))
+                    ->sort(1)
+                    ->group('Content Management'),
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([

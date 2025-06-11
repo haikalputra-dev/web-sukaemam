@@ -4,54 +4,49 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\UserBadgeResource\Pages;
 use App\Models\UserBadge;
+use App\Models\User;
+use App\Models\Badge;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Infolists\Infolist;
-use Filament\Infolists\Components;
+use Illuminate\Database\Eloquent\Builder;
 
 class UserBadgeResource extends Resource
 {
     protected static ?string $model = UserBadge::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-star';
-    
-    protected static ?string $navigationGroup = 'Activity Management';
-    
-    protected static ?int $navigationSort = 3;
 
-    protected static ?string $label = 'User Badge';
-    
-    protected static ?string $pluralLabel = 'User Badges';
+    protected static ?string $navigationGroup = 'Gamification';
+
+    protected static ?int $navigationSort = 2;
+
+    protected static ?string $modelLabel = 'User Badge';
+
+    protected static ?string $pluralModelLabel = 'User Badges';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Badge Achievement')
-                    ->schema([
-                        Forms\Components\Select::make('user_id')
-                            ->label('User')
-                            ->relationship('user', 'username')
-                            ->searchable()
-                            ->preload()
-                            ->required(),
-                        
-                        Forms\Components\Select::make('badge_id')
-                            ->label('Badge')
-                            ->relationship('badge', 'name')
-                            ->searchable()
-                            ->preload()
-                            ->required(),
-                        
-                        Forms\Components\DateTimePicker::make('earned_at')
-                            ->label('Earned At')
-                            ->required()
-                            ->default(now()),
-                    ])
-                    ->columns(2),
+                Forms\Components\Select::make('user_id')
+                    ->label('User')
+                    ->options(User::all()->pluck('username', 'id'))
+                    ->required()
+                    ->searchable(),
+                
+                Forms\Components\Select::make('badge_id')
+                    ->label('Badge')
+                    ->options(Badge::all()->pluck('name', 'id'))
+                    ->required()
+                    ->searchable(),
+                
+                Forms\Components\DateTimePicker::make('earned_at')
+                    ->label('Earned At')
+                    ->default(now())
+                    ->required(),
             ]);
     }
 
@@ -59,113 +54,62 @@ class UserBadgeResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\ImageColumn::make('user.avatar_url')
-                    ->label('User')
-                    ->circular()
-                    ->defaultImageUrl(fn($record) => 
-                        'https://ui-avatars.com/api/?name=' . urlencode($record->user->username ?? 'User') . '&background=0D8ABC&color=fff'
-                    ),
-                
                 Tables\Columns\TextColumn::make('user.username')
-                    ->label('Username')
-                    ->searchable()
-                    ->sortable(),
+                    ->label('User')
+                    ->sortable()
+                    ->searchable(),
                 
                 Tables\Columns\ImageColumn::make('badge.image_url')
                     ->label('Badge')
-                    ->circular()
-                    ->size(50),
+                    ->size(40)
+                    ->circular(),
                 
                 Tables\Columns\TextColumn::make('badge.name')
                     ->label('Badge Name')
-                    ->searchable()
                     ->sortable()
-                    ->weight('bold'),
-                
-                Tables\Columns\TextColumn::make('badge.difficulty_level')
-                    ->label('Difficulty')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'bronze' => 'amber',
-                        'silver' => 'gray',
-                        'gold' => 'yellow',
-                        'platinum' => 'blue',
-                        'legendary' => 'purple',
-                        default => 'gray',
-                    }),
-                
-                Tables\Columns\TextColumn::make('badge.badge_type')
-                    ->label('Type')
-                    ->badge()
-                    ->color('info'),
-                
-                Tables\Columns\TextColumn::make('badge.points_reward')
-                    ->label('Points')
-                    ->suffix(' pts')
-                    ->color('success'),
+                    ->searchable(),
                 
                 Tables\Columns\TextColumn::make('earned_at')
-                    ->label('Earned')
+                    ->label('Earned At')
                     ->dateTime()
-                    ->sortable()
-                    ->since()
-                    ->description(fn($record) => $record->earned_at->format('M j, Y')),
-                
-                Tables\Columns\TextColumn::make('user.level')
-                    ->label('User Level')
-                    ->badge()
-                    ->color('primary')
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->sortable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('user')
-                    ->relationship('user', 'username')
-                    ->searchable()
-                    ->preload(),
+                Tables\Filters\SelectFilter::make('user_id')
+                    ->label('User')
+                    ->options(User::all()->pluck('username', 'id'))
+                    ->searchable(),
                 
-                Tables\Filters\SelectFilter::make('badge')
-                    ->relationship('badge', 'name')
-                    ->searchable()
-                    ->preload(),
-                
-                Tables\Filters\SelectFilter::make('difficulty_level')
-                    ->label('Badge Difficulty')
-                    ->options([
-                        'bronze' => 'Bronze',
-                        'silver' => 'Silver',
-                        'gold' => 'Gold',
-                        'platinum' => 'Platinum',
-                        'legendary' => 'Legendary',
-                    ])
-                    ->query(function ($query, array $data) {
-                        if ($data['value']) {
-                            $query->whereHas('badge', fn ($q) => 
-                                $q->where('difficulty_level', $data['value'])
-                            );
-                        }
-                    }),
-                
-                Tables\Filters\SelectFilter::make('badge_type')
-                    ->label('Badge Type')
-                    ->options([
-                        'checkin_count' => 'Check-in Count',
-                        'restaurant_variety' => 'Restaurant Variety',
-                        'consecutive_days' => 'Consecutive Days',
-                        'points_milestone' => 'Points Milestone',
-                        'special_event' => 'Special Event',
-                        'first_time' => 'First Time Achievement',
-                        'social' => 'Social Achievement',
-                        'explorer' => 'Explorer Achievement',
-                    ])
-                    ->query(function ($query, array $data) {
-                        if ($data['value']) {
-                            $query->whereHas('badge', fn ($q) => 
-                                $q->where('badge_type', $data['value'])
-                            );
-                        }
-                    }),
-                
-                Tables\Filters\Filter::make('recent_achievements')
-                    ->label('Recent Achievements (7 days)')
-                    ->query(fn ($query) => 
-                        $
+                Tables\Filters\SelectFilter::make('badge_id')
+                    ->label('Badge')
+                    ->options(Badge::all()->pluck('name', 'id'))
+                    ->searchable(),
+            ])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
+            ->defaultSort('earned_at', 'desc');
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListUserBadges::route('/'),
+            'create' => Pages\CreateUserBadge::route('/create'),
+            'edit' => Pages\EditUserBadge::route('/{record}/edit'),
+        ];
+    }
+}

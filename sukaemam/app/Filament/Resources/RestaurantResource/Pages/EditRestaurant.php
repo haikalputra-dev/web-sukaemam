@@ -25,7 +25,7 @@ class EditRestaurant extends EditRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        // Use the accessor defined in the model
+        // Access through the accessor which is already set up to return the correct format
         $data['restaurant_images'] = $this->record->restaurant_images;
         
         return $data;
@@ -39,28 +39,26 @@ class EditRestaurant extends EditRecord
             // Get the new state of images
             $newImagePaths = $this->form->getState()['restaurant_images'] ?? [];
             
-            // Get existing image paths from the database
-            $restaurant->load('restaurantImages');
-            $existingImagePaths = $restaurant->restaurantImages->pluck('image_url')->toArray();
-
-            // Find images to delete (in existing but not in new)
-            $imagesToDelete = array_diff($existingImagePaths, $newImagePaths);
-            if (!empty($imagesToDelete)) {
-                RestaurantImage::where('restaurant_id', $restaurant->id)
-                    ->whereIn('image_url', $imagesToDelete)
-                    ->delete();
-            }
-
-            // Find images to add (in new but not in existing)
-            $imagesToAdd = array_diff($newImagePaths, $existingImagePaths);
-            if (!empty($imagesToAdd)) {
-                foreach ($imagesToAdd as $imagePath) {
-                    // Verify the file exists in storage
-                    if (!\Storage::disk('public')->exists($imagePath)) {
-                        \Log::warning("Image file not found in storage: {$imagePath}");
-                        continue;
+            // Delete all existing images that are not in the new set
+            RestaurantImage::where('restaurant_id', $restaurant->id)
+                ->whereNotIn('image_url', $newImagePaths)
+                ->get()
+                ->each(function ($image) {
+                    // Delete the file from storage
+                    if (\Storage::disk('public')->exists($image->image_url)) {
+                        \Storage::disk('public')->delete($image->image_url);
                     }
-                    
+                    // Delete the database record
+                    $image->delete();
+                });
+
+            // Get current image paths after deletion
+            $existingImagePaths = $restaurant->restaurantImages()->pluck('image_url')->toArray();
+
+            // Add only new images that don't exist yet
+            $imagesToAdd = array_diff($newImagePaths, $existingImagePaths);
+            foreach ($imagesToAdd as $imagePath) {
+                if (\Storage::disk('public')->exists($imagePath)) {
                     RestaurantImage::create([
                         'restaurant_id' => $restaurant->id,
                         'image_url' => $imagePath,
