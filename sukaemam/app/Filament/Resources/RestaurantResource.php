@@ -18,6 +18,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ViewAction;
 
 class RestaurantResource extends Resource
@@ -25,11 +26,11 @@ class RestaurantResource extends Resource
     protected static ?string $model = Restaurant::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
-    
+
     protected static ?string $navigationLabel = 'Restaurants';
-    
+
     protected static ?string $navigationGroup = 'Content Management';
-    
+
     protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
@@ -42,18 +43,18 @@ class RestaurantResource extends Resource
                             ->required()
                             ->maxLength(255)
                             ->columnSpanFull(),
-                            
+
                         Textarea::make('description')
                             ->required()
                             ->rows(3)
                             ->columnSpanFull(),
-                            
+
                         TextInput::make('address')
                             ->required()
                             ->maxLength(500)
                             ->columnSpanFull(),
                     ])->columns(2),
-                    
+
                 Section::make('Location')
                     ->schema([
                         TextInput::make('latitude')
@@ -61,14 +62,14 @@ class RestaurantResource extends Resource
                             ->numeric()
                             ->step(0.0000001)
                             ->placeholder('-6.928034'),
-                            
+
                         TextInput::make('longitude')
                             ->required()
                             ->numeric()
                             ->step(0.0000001)
                             ->placeholder('106.628167'),
                     ])->columns(2),
-                    
+
                 Section::make('Images')
                     ->schema([
                         FileUpload::make('restaurant_images')
@@ -101,7 +102,7 @@ class RestaurantResource extends Resource
                             ->removeUploadedFileButtonPosition('center')
                             ->uploadProgressIndicatorPosition('center'),
                     ])->columns(1),
-                    
+
                 Section::make('Rating')
                     ->schema([
                         TextInput::make('average_rating')
@@ -127,19 +128,19 @@ class RestaurantResource extends Resource
                     ->stacked()
                     ->limit(3)
                     ->limitedRemainingText(),
-                    
+
                 TextColumn::make('name')
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
-                    
+
                 TextColumn::make('address')
                     ->limit(50)
                     ->tooltip(function (TextColumn $column): ?string {
                         $state = $column->getState();
                         return strlen($state) > 50 ? $state : null;
                     }),
-                    
+
                 TextColumn::make('average_rating')
                     ->label('Rating')
                     ->badge()
@@ -150,17 +151,17 @@ class RestaurantResource extends Resource
                         default => 'danger',
                     })
                     ->formatStateUsing(fn (string $state): string => number_format($state, 1) . ' ⭐'),
-                    
+
                 TextColumn::make('latitude')
                     ->label('Lat')
                     ->formatStateUsing(fn (string $state): string => number_format($state, 6))
                     ->toggleable(isToggledHiddenByDefault: true),
-                    
+
                 TextColumn::make('longitude')
                     ->label('Lng')
                     ->formatStateUsing(fn (string $state): string => number_format($state, 6))
                     ->toggleable(isToggledHiddenByDefault: true),
-                    
+
                 TextColumn::make('created_at')
                     ->dateTime('d M Y, H:i')
                     ->sortable()
@@ -170,27 +171,28 @@ class RestaurantResource extends Resource
                 Tables\Filters\Filter::make('high_rated')
                     ->label('High Rated (4.0+)')
                     ->query(fn ($query) => $query->where('average_rating', '>=', 4.0)),
-                    
+
                 Tables\Filters\Filter::make('recent')
                     ->label('Added This Month')
                     ->query(fn ($query) => $query->whereMonth('created_at', now()->month)),
             ])
             ->actions([
                 EditAction::make(),
-                Tables\Actions\Action::make('generate_qr')
+                Action::make('generate_qr')
                     ->label('Generate QR')
                     ->icon('heroicon-o-qr-code')
                     ->color('success')
                     ->action(function (Restaurant $record) {
-                        // TODO: Implement QR generation logic
-                        // For now, just show notification
                         \Filament\Notifications\Notification::make()
-                            ->title('QR Code Generated!')
-                            ->body("QR for {$record->name} - ID: {$record->id}")
+                            ->title('QR Code Generated')
+                            ->body("QR code untuk restoran {$record->name} berhasil di-generate!")
                             ->success()
                             ->send();
-                    }),
+                    })
+                    ->url(fn(Restaurant $record) => url("/generate-qr/{$record->id}"))
+                    ->openUrlInNewTab(),
             ])
+
             ->bulkActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),

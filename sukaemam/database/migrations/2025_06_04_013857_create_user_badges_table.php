@@ -10,15 +10,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('user_badges', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignUuid('badge_id')->constrained()->onDelete('cascade');
+            $table->foreignId('badge_id')->constrained()->onDelete('cascade');
             $table->timestamp('earned_at')->useCurrent();
             $table->timestamps();
-            
+
             // Unique constraint - user can only earn same badge once
             $table->unique(['user_id', 'badge_id']);
-            
+
             // Indexes
             $table->index(['user_id', 'earned_at']);
         });

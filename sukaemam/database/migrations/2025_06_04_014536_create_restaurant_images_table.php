@@ -10,12 +10,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('restaurant_images', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->foreignId('restaurant_id')->constrained()->onDelete('cascade');
             $table->string('image_url');
             $table->timestamp('uploaded_at')->useCurrent();
             $table->timestamps();
-            
+
             // Index
             $table->index('restaurant_id');
         });

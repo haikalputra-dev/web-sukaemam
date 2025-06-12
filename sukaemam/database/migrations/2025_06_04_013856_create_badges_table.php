@@ -10,12 +10,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('badges', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->string('name');
             $table->text('description')->nullable();
             $table->string('image_url')->nullable();
             $table->timestamps();
-            
+
             // Index
             $table->index('name');
         });
