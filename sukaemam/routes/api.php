@@ -17,3 +17,10 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+// Route::middleware('auth:sanctum')->post('/checkin', [\App\Http\Controllers\Api\CheckinController::class, 'store']);
+Route::post('/checkin-coba', [\App\Http\Controllers\Api\CheckinController::class, 'testMethod']);
+
+Route::post('/checkin-test', function () {
+    return response()->json(['message' => 'API test OK']);
+});
