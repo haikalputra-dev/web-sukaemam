@@ -30,6 +30,7 @@ Route::get('/', function () {
     return redirect()->route('filament.admin.auth.login');
 });
 
-Route::get('/generate-qr/{resto_id}', [QrCodeController::class, 'generate']);
+// Route::get('/generate-qr/{resto_id}', [QrCodeController::class, 'generate']);
 
-
+Route::get('/generate-qr/{restaurant}', [QrCodeController::class, 'generate'])
+    ->name('qr.generate');

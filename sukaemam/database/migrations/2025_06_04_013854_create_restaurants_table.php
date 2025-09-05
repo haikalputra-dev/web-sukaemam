@@ -18,7 +18,7 @@ return new class extends Migration
             $table->decimal('longitude', 11, 8);
             $table->decimal('average_rating', 3, 2)->default(0.00);
             $table->timestamps();
-            
+
             // Indexes
             $table->index(['latitude', 'longitude']);
             $table->index('name');
