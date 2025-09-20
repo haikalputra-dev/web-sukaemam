@@ -24,6 +24,7 @@ class QrCodeController extends Controller
     {
         $secret = env('CHECKIN_HMAC_SECRET', '');
         if ($secret === '') {
+            dd('CHECKIN_HMAC_SECRET belum diset di .env');
             abort(500, 'CHECKIN_HMAC_SECRET belum diset di .env');
         }
 

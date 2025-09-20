@@ -1,10 +1,12 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Checkin;
 use App\Models\Restaurant;
-use App\Support\QrSignature; // kelas helper b64url + sign (yang kemarin)
+use App\Services\GamificationService;
+use App\Support\QrSignature;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,82 +14,157 @@ use Illuminate\Validation\ValidationException;
 
 class CheckinController extends Controller
 {
-    public function testMethod(Request $request)
+    /**
+     * The gamification service instance.
+     * @var \App\Services\GamificationService
+     */
+    protected $gamificationService;
+
+    /**
+     * Create a new controller instance.
+     *
+     * @param  \App\Services\GamificationService  $gamificationService
+     * @return void
+     */
+    public function __construct(GamificationService $gamificationService)
     {
-        return response()->json(['message' => 'Check-in berhasil']);
+        // Menggunakan dependency injection pada constructor agar service
+        // tersedia untuk semua method di dalam class ini.
+        $this->gamificationService = $gamificationService;
     }
 
-    //     public function store(Request $request): JsonResponse
-    // {
-    //     $qr = (string) $request->input('qr', '');
-    //     if ($qr === '') {
-    //         return response()->json(['status' => 'error', 'message' => 'QR missing'], 422);
-    //     }
-
-    //     // TODO: validasi isi QR kamu (misal format RESTO-123|ts|nonce, cek expiry/nonce di DB, dsb)
-    //     $points = 15;
-
-    //     return response()->json([
-    //         'status' => 'ok',
-    //         'points' => $points,
-    //         'qr' => $qr,
-    //     ]);
-    // }
-
+    /**
+     * Handle a user check-in request.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function store(Request $request)
     {
         $data = $request->validate([
-            'qr'       => ['required','string','max:512'],
-            'lat'      => ['required','numeric','between:-90,90'],
-            'lng'      => ['required','numeric','between:-180,180'],
-            'accuracy' => ['nullable','numeric','min:0'], // meter
+            'qr'       => ['required', 'string', 'max:512'],
+            'lat'      => ['required', 'numeric', 'between:-90,90'],
+            'lng'      => ['required', 'numeric', 'between:-180,180'],
+            'accuracy' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        // TODO: ganti ke Firebase middleware → $user = $request->user();
         $user = $request->user();
-        if (!$user) {
-            throw ValidationException::withMessages(['auth' => 'Unauthenticated']);
-        }
 
-        // Parse QR: SE-V1|rid|ts|nonce|sig
+        // Simpan level lama untuk mengecek apakah ada kenaikan level nanti
+        $oldLevel = $user->level;
+
+        // Validasi QR, restoran, signature, dan batas check-in harian
+        $restaurant = $this->validateCheckinPrerequisites($data, $user);
+
+        // Validasi lokasi (Geofence)
+        $distance = $this->validateLocation($data, $restaurant);
+        $radius = (int) env('CHECKIN_RADIUS_METERS', 75);
+
+        // --- MULAI LOGIKA UTAMA ---
+
+        // Gunakan konstanta dari service agar nilainya terpusat
+        $pointsEarned = GamificationService::POINTS_FOR_CHECK_IN;
+
+        $checkin = DB::transaction(function () use ($user, $restaurant, $data, $pointsEarned) {
+            // 1. Buat record check-in
+            $c = Checkin::create([
+                'user_id'       => $user->id,
+                'restaurant_id' => $restaurant->id,
+                'qr_code_data'  => $data['qr'],
+                'points_earned' => $pointsEarned,
+                'checkin_time'  => now(),
+                'day_key'       => (int) Carbon::now(config('app.timezone', 'UTC'))->format('Ymd'),
+                'scan_lat'      => $data['lat'],
+                'scan_lng'      => $data['lng'],
+                'scan_accuracy' => $data['accuracy'] ?? null,
+            ]);
+
+            // 2. Panggil service untuk melakukan SEMUANYA:
+            // tambah poin, hitung level, dan cek badge dalam satu panggilan.
+            $this->gamificationService->addPointsForAction($user, 'check_in');
+
+            return $c;
+        });
+
+        // --- SELESAI LOGIKA UTAMA ---
+
+        // Ambil data user terbaru setelah semua proses di service selesai
+        $user->refresh();
+        $newLevel = $user->level;
+
+        // Kembalikan response yang sama seperti sebelumnya
+        return response()->json([
+            'ok'              => true,
+            'points_earned'   => $pointsEarned,
+            'total_points'    => $user->total_points,
+            'distance_m'      => round($distance),
+            'radius_m'        => $radius,
+            'checkin_id'      => $checkin->id,
+            'restaurant_id'   => $restaurant->id,
+            'restaurant_name' => $restaurant->username, // Pastikan kolom ini benar 'username' atau 'name'
+            'level_up'        => $newLevel > $oldLevel,
+            'current_level'   => $newLevel,
+        ]);
+    }
+
+    /**
+     * Validate QR, signature, and daily limits.
+     *
+     * @param  array  $data
+     * @param  \App\Models\User  $user
+     * @return \App\Models\Restaurant
+     */
+    private function validateCheckinPrerequisites(array $data, $user): Restaurant
+    {
+        // Parse QR
         $parts = explode('|', $data['qr']);
         if (count($parts) !== 5 || $parts[0] !== 'SE-V1') {
             throw ValidationException::withMessages(['qr' => 'Format QR tidak valid']);
         }
         [, $rid, $ts, $nonce, $sig] = $parts;
 
-        if (!ctype_digit((string)$rid) || !ctype_digit((string)$ts)) {
-            throw ValidationException::withMessages(['qr' => 'Payload QR tidak valid']);
-        }
-        $rid = (int) $rid;
-
-        // Cek resto ada
-        $restaurant = Restaurant::query()->find($rid);
+        // Validate Restaurant
+        $restaurant = Restaurant::find($rid);
         if (!$restaurant || $restaurant->latitude === null || $restaurant->longitude === null) {
-            throw ValidationException::withMessages(['qr' => 'Restoran tidak ditemukan / lokasi resto belum diisi']);
+            throw ValidationException::withMessages(['qr' => 'Restoran tidak ditemukan atau lokasi belum diatur.']);
         }
 
-        // Verifikasi signature (tanpa expiry karena QR dicetak)
+        // Validate Signature
         $msg    = "SE-V1|{$rid}|{$ts}|{$nonce}";
         $expect = QrSignature::sign($msg, env('CHECKIN_HMAC_SECRET', ''));
         if (!hash_equals($expect, $sig)) {
             throw ValidationException::withMessages(['qr' => 'Signature tidak valid']);
         }
 
-        // Geofence
-        $radius     = (int) env('CHECKIN_RADIUS_METERS', 75);
-        $maxAcc     = (float) env('CHECKIN_MAX_ACCURACY_METERS', 60);
-        $acc        = $data['accuracy'] ?? null;
+        // Validate Daily Limit
+        $todayKey = (int) Carbon::now(config('app.timezone', 'UTC'))->format('Ymd');
+        $alreadyCheckedIn = Checkin::query()
+            ->where('user_id', $user->id)
+            ->where('restaurant_id', $restaurant->id)
+            ->where('day_key', $todayKey)
+            ->exists();
 
-        if ($acc !== null && $acc > $maxAcc) {
-            throw ValidationException::withMessages(['location' => "Akurasi lokasi terlalu besar (> {$maxAcc} m)"]);
+        if ($alreadyCheckedIn) {
+            throw ValidationException::withMessages(['limit' => 'Anda sudah check-in di restoran ini hari ini.']);
         }
 
+        return $restaurant;
+    }
+
+    /**
+     * Validate user's location against the restaurant's location (Geofence).
+     *
+     * @param  array  $data
+     * @param  \App\Models\Restaurant  $restaurant
+     * @return float The distance in meters.
+     */
+    private function validateLocation(array $data, Restaurant $restaurant): float
+    {
+        $radius = (int) env('CHECKIN_RADIUS_METERS', 75);
+
         $distance = $this->distanceMeters(
-            (float) $data['lat'],
-            (float) $data['lng'],
-            (float) $restaurant->latitude,
-            (float) $restaurant->longitude
+            (float) $data['lat'], (float) $data['lng'],
+            (float) $restaurant->latitude, (float) $restaurant->longitude
         );
 
         if ($distance > $radius) {
@@ -96,108 +173,22 @@ class CheckinController extends Controller
             ]);
         }
 
-        // 1x per HARI
-        $tz = config('app.timezone', 'UTC');
-        $todayKey = (int) Carbon::now($tz)->format('Ymd');
-
-        if (filter_var(env('CHECKIN_ONE_PER_DAY_GLOBAL', false), FILTER_VALIDATE_BOOLEAN)) {
-            // Global: user cuma boleh 1x check-in dimana pun per hari
-            $exists = Checkin::query()
-                ->where('user_id', $user->id)
-                ->where('day_key', $todayKey)
-                ->exists();
-            if ($exists) {
-                throw ValidationException::withMessages([
-                    'limit' => 'Sudah melakukan check-in hari ini.',
-                ]);
-            }
-        } else {
-            // Per resto: 1x per restoran per hari
-            $exists = Checkin::query()
-                ->where('user_id', $user->id)
-                ->where('restaurant_id', $rid)
-                ->where('day_key', $todayKey)
-                ->exists();
-            if ($exists) {
-                throw ValidationException::withMessages([
-                    'limit' => 'Sudah melakukan check-in di restoran ini hari ini.',
-                ]);
-            }
-        }
-
-        // Simpan check-in + tambah poin (dinamis nanti)
-        $points = 15; // TODO: ambil aturan dinamis per resto
-        $checkin = DB::transaction(function () use ($user, $rid, $data, $points, $todayKey) {
-            $c = Checkin::create([
-                'user_id'       => $user->id,
-                'restaurant_id' => $rid,
-                'qr_code_data'  => $data['qr'],      // boleh disimpan untuk audit (TIDAK unik)
-                'points_earned' => $points,
-                'checkin_time'  => now(),
-                'day_key'       => $todayKey,
-                'scan_lat'      => $data['lat'],
-                'scan_lng'      => $data['lng'],
-                'scan_accuracy' => $data['accuracy'] ?? null,
-            ]);
-            $user->increment('total_points', $points);
-            return $c;
-        });
-
-        return response()->json([
-            'ok' => true,
-            'points_earned' => $points,
-            'total_points'  => $user->fresh()->total_points,
-            'distance_m'    => round($distance),
-            'radius_m'      => $radius,
-            'checkin_id'    => $checkin->id,
-        ]);
+        return $distance;
     }
 
+
+    /**
+     * Calculate distance between two points using Haversine formula.
+     *
+     * @return float Distance in meters.
+     */
     private function distanceMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
     {
-        $R = 6371000.0; // meter
+        $R = 6371000.0; // Earth radius in meters
         $dLat = deg2rad($lat2 - $lat1);
         $dLng = deg2rad($lng2 - $lng1);
-        $a = sin($dLat/2)**2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng/2)**2;
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
         $c = 2 * asin(min(1, sqrt($a)));
         return $R * $c;
     }
-
-    // public function store(Request $request)
-    // {
-    //     try {
-    //         $request->validate([
-    //             'restaurant_id' => 'required|exists:restaurants,id',
-    //             'qr_code_data'  => 'required',
-    //         ]);
-    //         $user = User::first();
-    //         if (! $user) {
-    //             return response()->json(['message' => 'No user found'], 404);
-    //         }
-
-    //         $already = Checkin::where('user_id', $user->id)
-    //             ->where('restaurant_id', $request->restaurant_id)
-    //             ->whereDate('checkin_time', now())
-    //             ->exists();
-
-    //         if ($already) {
-    //             return response()->json(['message' => 'Sudah check-in hari ini'], 400);
-    //         }
-
-    //         $checkin = Checkin::create([
-    //             'user_id'       => $user->id,
-    //             'restaurant_id' => $request->restaurant_id,
-    //             'checkin_time'  => now(),
-    //             'qr_code_data'  => $request->qr_code_data ?? $request->restaurant_id,
-    //             'points_earned' => 10,
-    //         ]);
-    //         $user->increment('total_points', 10);
-
-    //         return response()->json(['message' => 'Check-in berhasil', 'checkin' => $checkin]);
-    //     } catch (\Exception $e) {
-    //         \Log::error('CheckinController@store error: ' . $e->getMessage());
-    //         return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
-    //     }
-    // }
-
 }

@@ -28,6 +28,8 @@ class VerifyFirebaseToken
             $info = $this->auth->verify($idToken);
         } catch (\Throwable $e) {
             return $this->unauthorized('Invalid token: '.$e->getMessage());
+                // dd('TOKEN VALIDATION FAILED', $e->getMessage(), $e);
+                // dd($e);
         }
 
         // Ambil info dasar dari claims
@@ -60,7 +62,7 @@ class VerifyFirebaseToken
             // 3) update/link
             $user->forceFill([
                 'firebase_uid' => $uid,
-                'name'         => $name ?? $user->name,
+                // 'name'         => $name ?? $user->name,
                 // simpan email hanya jika kolom email kamu nullable/unik
                 'email'        => $emailNorm ?? $user->email,
                 // kalau punya kolom avatar, buka komentar di bawah:
@@ -70,8 +72,10 @@ class VerifyFirebaseToken
             // 4) create baru
             $user = User::create([
                 'firebase_uid' => $uid,
-                'name'         => $name,
+                // 'name'         => $name,
                 'email'        => $emailNorm,   // boleh null untuk anon
+                'username'     => Str::slug($name, '.') . '.' . random_int(100, 999),
+                // 'password'     => bcrypt(Str::random(16)), // random password TODO ganti migration agar nullable
                 'total_points' => 0,
             ]);
         }

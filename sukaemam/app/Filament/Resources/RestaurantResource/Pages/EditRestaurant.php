@@ -17,7 +17,7 @@ class EditRestaurant extends EditRecord
             Actions\DeleteAction::make(),
         ];
     }
-    
+
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');
@@ -27,52 +27,31 @@ class EditRestaurant extends EditRecord
     {
         // Access through the accessor which is already set up to return the correct format
         $data['restaurant_images'] = $this->record->restaurant_images;
-        
+
         return $data;
     }
 
     protected function afterSave(): void
     {
-        try {
-            $restaurant = $this->record;
-            
-            // Get the new state of images
-            $newImagePaths = $this->form->getState()['restaurant_images'] ?? [];
-            
-            // Delete all existing images that are not in the new set
-            RestaurantImage::where('restaurant_id', $restaurant->id)
-                ->whereNotIn('image_url', $newImagePaths)
-                ->get()
-                ->each(function ($image) {
-                    // Delete the file from storage
-                    if (\Storage::disk('public')->exists($image->image_url)) {
-                        \Storage::disk('public')->delete($image->image_url);
-                    }
-                    // Delete the database record
-                    $image->delete();
-                });
+        $restaurant = $this->getRecord();
+        $newImagePaths = array_values($this->data['restaurant_images'] ?? []);
+        $oldImagePaths = $restaurant->restaurantImages()->pluck('image_url')->toArray();
 
-            // Get current image paths after deletion
-            $existingImagePaths = $restaurant->restaurantImages()->pluck('image_url')->toArray();
-
-            // Add only new images that don't exist yet
-            $imagesToAdd = array_diff($newImagePaths, $existingImagePaths);
-            foreach ($imagesToAdd as $imagePath) {
-                if (\Storage::disk('public')->exists($imagePath)) {
-                    RestaurantImage::create([
-                        'restaurant_id' => $restaurant->id,
-                        'image_url' => $imagePath,
-                        'uploaded_at' => now(),
-                    ]);
-                }
+        $imagesToDelete = array_diff($oldImagePaths, $newImagePaths);
+        if (!empty($imagesToDelete)) {
+            foreach ($imagesToDelete as $path) {
+                \Storage::disk('public')->delete($path);
+                $restaurant->restaurantImages()->where('image_url', $path)->delete();
             }
-            
-            // Force reload the relationship
-            $restaurant->load('restaurantImages');
-            
-        } catch (\Exception $e) {
-            \Log::error("Error saving restaurant images: " . $e->getMessage());
-            throw $e;
+        }
+
+        if (!empty($newImagePaths)) {
+            foreach ($newImagePaths as $index => $path) {
+                $restaurant->restaurantImages()->updateOrCreate(
+                    ['image_url' => $path],
+                    ['is_main' => $index === 0]
+                );
+            }
         }
     }
 }

@@ -10,17 +10,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('reviews', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('restaurant_id')->constrained()->onDelete('cascade');
-            $table->integer('rating')->unsigned(); // 1-5 stars
+
+            // Ganti 'checkin_id' menjadi 'check_in_id'
+            $table->foreignUuid('check_in_id')->constrained('checkins')->onDelete('cascade');
+
+            $table->unsignedTinyInteger('rating');
             $table->text('comment')->nullable();
+            $table->string('photo_url')->nullable();
             $table->timestamps();
-            
-            // Unique constraint - user can only review same restaurant once
-            $table->unique(['user_id', 'restaurant_id']);
-            
-            // Indexes
+
+            // Ganti 'checkin_id' menjadi 'check_in_id'
+            $table->unique('check_in_id');
+
             $table->index(['restaurant_id', 'rating']);
             $table->index(['user_id', 'created_at']);
         });

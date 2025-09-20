@@ -18,6 +18,32 @@ use App\Http\Controllers\QrCodeController;
 //     return view('welcome');
 // });
 
+Route::get('/test-credentials', function () {
+    // 1. Baca path file kredensial dari file .env
+    $path = env('FIREBASE_CREDENTIALS');
+
+    if (!$path) {
+        return 'Variabel FIREBASE_CREDENTIALS tidak ditemukan di file .env';
+    }
+
+    // 2. Cek apakah file benar-benar ada di path tersebut
+    if (!File::exists($path)) {
+        return "File kredensial tidak ditemukan di path: " . $path;
+    }
+
+    // 3. Baca isi file dan ambil project_id-nya
+    try {
+        $credentialsJson = File::get($path);
+        $credentialsArray = json_decode($credentialsJson, true);
+        $projectId = $credentialsArray['project_id'] ?? 'project_id tidak ditemukan di dalam file JSON';
+
+        return "Project ID yang sedang digunakan oleh Backend Laravel adalah: <strong>" . $projectId . "</strong>";
+
+    } catch (\Exception $e) {
+        return "Gagal membaca atau mem-parsing file JSON: " . $e->getMessage();
+    }
+});
+
 
 Route::get('/', function () {
     // Cek apakah user sudah login di Filament (admin)

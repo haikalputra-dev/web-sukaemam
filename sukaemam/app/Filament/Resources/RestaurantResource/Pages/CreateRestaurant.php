@@ -17,14 +17,16 @@ class CreateRestaurant extends CreateRecord
 
     protected function afterCreate(): void
     {
-        $restaurant = $this->record;
-        $images = $this->form->getState()['restaurant_images'] ?? [];
+        $imagesData = $this->data['restaurant_images'] ?? [];
+        $restaurant = $this->getRecord();
 
-        if (!empty($images)) {
-            foreach ($images as $image) {
-                RestaurantImage::create([
-                    'restaurant_id' => $restaurant->id,
-                    'image_url' => $image,
+        if (!empty($imagesData)) {
+            $images = array_values($imagesData);
+
+            foreach ($images as $index => $imagePath) {
+                $restaurant->restaurantImages()->create([
+                    'image_url' => $imagePath,
+                    'is_main'   => $index === 0,
                 ]);
             }
         }

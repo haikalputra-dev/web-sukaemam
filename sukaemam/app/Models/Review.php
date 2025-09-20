@@ -10,11 +10,16 @@ class Review extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $fillable = ['user_id', 'restaurant_id', 'rating', 'comment'];
-
-    protected $casts = [
-        'rating' => 'integer',
+    protected $fillable = [
+        'user_id',
+        'restaurant_id',
+        'checkin_id',
+        'rating',
+        'comment',
+        'photo_url'
     ];
+
+    protected $casts = ['rating' => 'integer'];
 
     public function user()
     {
@@ -31,5 +36,10 @@ class Review extends Model
         static::saved(function ($review) {
             $review->restaurant->updateAverageRating();
         });
+    }
+
+        public function checkin()
+    {
+        return $this->belongsTo(Checkin::class);
     }
 }

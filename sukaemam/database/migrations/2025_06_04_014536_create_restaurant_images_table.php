@@ -13,6 +13,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('restaurant_id')->constrained()->onDelete('cascade');
             $table->string('image_url');
+            $table->boolean('is_main')->default(false);
             $table->timestamp('uploaded_at')->useCurrent();
             $table->timestamps();
 

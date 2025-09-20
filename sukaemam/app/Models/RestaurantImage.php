@@ -9,10 +9,11 @@ class RestaurantImage extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['restaurant_id', 'image_url', 'uploaded_at'];
+    protected $fillable = ['restaurant_id', 'image_url', 'uploaded_at','is_main'];
 
     protected $casts = [
         'uploaded_at' => 'datetime',
+        'is_main' => 'boolean',
     ];
 
     public function restaurant()

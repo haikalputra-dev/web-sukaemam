@@ -17,6 +17,7 @@ class AuthController extends Controller
                 'name'         => $u->name,
                 'email'        => $u->email,
                 'total_points' => $u->total_points,
+                'message' => 'User authenticated and synced successfully.',
             ],
         ]);
     }

@@ -20,6 +20,7 @@ use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ViewAction;
+use Illuminate\Support\Facades\Storage;
 
 class RestaurantResource extends Resource
 {
@@ -60,13 +61,13 @@ class RestaurantResource extends Resource
                         TextInput::make('latitude')
                             ->required()
                             ->numeric()
-                            ->step(0.0000001)
+                            ->step('any')
                             ->placeholder('-6.928034'),
 
                         TextInput::make('longitude')
                             ->required()
                             ->numeric()
-                            ->step(0.0000001)
+                            ->step('any')
                             ->placeholder('106.628167'),
                     ])->columns(2),
 
@@ -127,7 +128,8 @@ class RestaurantResource extends Resource
                     ->circular()
                     ->stacked()
                     ->limit(3)
-                    ->limitedRemainingText(),
+                    ->limitedRemainingText()
+                    ->size(80),
 
                 TextColumn::make('name')
                     ->searchable()
@@ -189,7 +191,7 @@ class RestaurantResource extends Resource
                             ->success()
                             ->send();
                     })
-                    ->url(fn(Restaurant $record) => url("/generate-qr/{$record->id}"))
+                    ->url(fn(Restaurant $record) => url("/generate-qr/{$record->id}?dl=1"))
                     ->openUrlInNewTab(),
             ])
 

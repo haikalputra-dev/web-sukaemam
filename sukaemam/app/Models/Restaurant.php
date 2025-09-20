@@ -14,27 +14,23 @@ class Restaurant extends Model
         'name',
         'address',
         'description',
+        'price_info',
         'latitude',
         'longitude',
         'average_rating',
+        'is_recommended',
     ];
 
     // Virtual attribute for form handling
-    protected $appends = ['restaurant_images'];
+    protected $appends = ['restaurant_image_urls'];
 
-    public function getRestaurantImagesAttribute()
+    public function getRestaurantImageUrlsAttribute()
     {
-        // Load the relationship if it hasn't been loaded yet
         if (!$this->relationLoaded('restaurantImages')) {
             $this->load('restaurantImages');
         }
-        
-        return $this->getRelation('restaurantImages')->pluck('image_url')->toArray();
-    }
 
-    public function setRestaurantImagesAttribute($value)
-    {
-        // This will be handled in the CreateRestaurant and EditRestaurant pages
+        return $this->getRelation('restaurantImages')->pluck('image_url')->toArray();
     }
 
     protected $casts = [
